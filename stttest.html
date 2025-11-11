@@ -7,7 +7,7 @@
 </head>
 <body>
     <h1>음성 인식 챗봇</h1>
-    <button id="start-recording">???? 음성 입력</button>
+    <button id="start-recording">음성 입력</button>
     <p id="recognized-text">음성 인식 결과: <span></span></p>
     <p id="chatbot-response">챗봇 응답: <span></span></p>
 
@@ -15,24 +15,48 @@
         const startRecordingButton = document.getElementById("start-recording");
         const recognizedTextElement = document.querySelector("#recognized-text span");
         const chatbotResponseElement = document.querySelector("#chatbot-response span");
+		
+		let THREAD_ID = null;
+		const OPENAI_API_KEY = "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";
+		
+		// 스레드 생성 함수
+		async function createThread() {
+			//const OPENAI_API_KEY = "your-api-key";
+			const response = await fetch("https://api.openai.com/v1/threads", {
+				method: "POST",
+				headers: {
+					"Authorization": `Bearer ${OPENAI_API_KEY}`,
+					"Content-Type": "application/json"
+				}
+			});
+			const data = await response.json();
+			return data.id;
+		}
+		
+		// 페이지 로드 시 스레드 생성
+		window.addEventListener("DOMContentLoaded", async () => {
+			THREAD_ID = await createThread();
+			console.log("생성된 Thread ID:", THREAD_ID);
+		});
 
+		
         // Web Speech API: SpeechRecognition 설정
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = "ko-KR";  // 한국어 인식
-        recognition.interimResults = false; // 중간 결과 비활성화
+        recognition.interimResults = true; // 중간 결과 활성화
         recognition.continuous = false; // 한 번의 음성 인식 후 종료
 
         startRecordingButton.addEventListener("click", () => {
             recognition.start();
             startRecordingButton.disabled = true;
-            startRecordingButton.textContent = "????️ 음성 인식 중...";
+            startRecordingButton.textContent = "음성 인식 중...";
         });
 
         recognition.onresult = async (event) => {
             const transcript = event.results[0][0].transcript;
             recognizedTextElement.textContent = transcript;
             startRecordingButton.disabled = false;
-            startRecordingButton.textContent = "???? 음성 입력";
+            startRecordingButton.textContent = "음성 입력";
             
             // OpenAI Assistant API에 텍스트 전달 후 응답 받기
             const response = await sendTextToAssistant(transcript);
@@ -45,13 +69,13 @@
         recognition.onerror = (event) => {
             console.error("음성 인식 오류:", event.error);
             startRecordingButton.disabled = false;
-            startRecordingButton.textContent = "???? 음성 입력";
+            startRecordingButton.textContent = "음성 입력";
         };
 
         // OpenAI API에 질문을 보내고 응답 받기
         async function sendTextToAssistant(text) {
-            const OPENAI_API_KEY = "your-openai-api-key";
-            const THREAD_ID = "your-thread-id";  // 생성된 thread ID를 사용
+            //const OPENAI_API_KEY = "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";
+            //const THREAD_ID = "your-thread-id";  // 생성된 thread ID를 사용
             const API_URL = `https://api.openai.com/v1/threads/${THREAD_ID}/messages`;
 
             const response = await fetch(API_URL, {

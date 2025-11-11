@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>음성 인식 챗봇</title>
+</head>
+<body>
+    <h1>음성 인식 챗봇</h1>
+    <button id="start-recording">???? 음성 입력</button>
+    <p id="recognized-text">음성 인식 결과: <span></span></p>
+    <p id="chatbot-response">챗봇 응답: <span></span></p>
+
+    <script>
+        const startRecordingButton = document.getElementById("start-recording");
+        const recognizedTextElement = document.querySelector("#recognized-text span");
+        const chatbotResponseElement = document.querySelector("#chatbot-response span");
+
+        // Web Speech API: SpeechRecognition 설정
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = "ko-KR";  // 한국어 인식
+        recognition.interimResults = false; // 중간 결과 비활성화
+        recognition.continuous = false; // 한 번의 음성 인식 후 종료
+
+        startRecordingButton.addEventListener("click", () => {
+            recognition.start();
+            startRecordingButton.disabled = true;
+            startRecordingButton.textContent = "????️ 음성 인식 중...";
+        });
+
+        recognition.onresult = async (event) => {
+            const transcript = event.results[0][0].transcript;
+            recognizedTextElement.textContent = transcript;
+            startRecordingButton.disabled = false;
+            startRecordingButton.textContent = "???? 음성 입력";
+            
+            // OpenAI Assistant API에 텍스트 전달 후 응답 받기
+            const response = await sendTextToAssistant(transcript);
+            chatbotResponseElement.textContent = response;
+            
+            // TTS로 응답 음성 출력 (선택 사항)
+            speakResponse(response);
+        };
+
+        recognition.onerror = (event) => {
+            console.error("음성 인식 오류:", event.error);
+            startRecordingButton.disabled = false;
+            startRecordingButton.textContent = "???? 음성 입력";
+        };
+
+        // OpenAI API에 질문을 보내고 응답 받기
+        async function sendTextToAssistant(text) {
+            const OPENAI_API_KEY = "your-openai-api-key";
+            const THREAD_ID = "your-thread-id";  // 생성된 thread ID를 사용
+            const API_URL = `https://api.openai.com/v1/threads/${THREAD_ID}/messages`;
+
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    role: "user",
+                    content: text
+                })
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        // TTS(Text-to-Speech)로 챗봇 응답을 음성으로 출력
+        function speakResponse(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "ko-KR";  // 한국어 음성 설정
+            speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+</html>

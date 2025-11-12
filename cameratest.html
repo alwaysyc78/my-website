@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>모바일 카메라 사진촬영 샘플</title>
+  <style>
+    :root{font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans KR', 'Helvetica Neue', Arial;}
+    body{margin:0;display:flex;flex-direction:column;min-height:100vh;background:#f7f8fb;color:#111}
+    .container{max-width:900px;margin:0 auto;padding:16px;flex:1;display:flex;flex-direction:column;gap:12px}
+    .preview{position:relative;background:#000;border-radius:12px;overflow:hidden}
+    video{width:100%;height:auto;display:block}
+    canvas{display:none}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    button, select{padding:10px 14px;border-radius:8px;border:1px solid #ddd;background:white;cursor:pointer}
+    .thumb{width:120px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #ccc}
+    footer{padding:12px;text-align:center;font-size:13px;color:#666}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>모바일 카메라 사진촬영 샘플</h1>
+
+    <div class="preview" aria-live="polite">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn">카메라 시작</button>
+      <button id="captureBtn" disabled>촬영</button>
+      <button id="stopBtn" disabled>중지</button>
+      <button id="switchBtn" disabled>카메라 전환</button>
+      <a id="downloadLink" style="display:none">다운로드</a>
+      <select id="deviceSelect" style="min-width:180px;display:none"></select>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <img id="thumb" class="thumb" alt="최근 촬영" />
+      <div>
+        <p style="margin:0;font-size:14px;color:#333">설명:</p>
+        <p style="margin:6px 0 0 0;font-size:13px;color:#555">모바일에서 실행하면 카메라 권한 요청 후 실시간 미리보기가 보입니다. iOS Safari는 getUserMedia 지원이 제한적일 수 있으니 하단의 대체 입력을 사용하세요.</p>
+      </div>
+    </div>
+
+    <div>
+      <label for="fileInput">대체: 사진 업로드 (브라우저가 getUserMedia를 지원하지 않거나 권한 거부 시 사용)</label>
+      <input id="fileInput" type="file" accept="image/*" capture="environment" />
+    </div>
+
+  </div>
+
+  <footer>모바일 테스트 권장: Chrome, Safari 최신 버전</footer>
+
+<script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const startBtn = document.getElementById('startBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const switchBtn = document.getElementById('switchBtn');
+  const deviceSelect = document.getElementById('deviceSelect');
+  const thumb = document.getElementById('thumb');
+  const downloadLink = document.getElementById('downloadLink');
+  const fileInput = document.getElementById('fileInput');
+
+  let stream = null;
+  let currentDeviceId = null;
+  let videoTrack = null;
+
+  async function enumerateCameras() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter(d => d.kind === 'videoinput');
+      deviceSelect.innerHTML = '';
+      cameras.forEach(cam => {
+        const opt = document.createElement('option');
+        opt.value = cam.deviceId;
+        opt.text = cam.label || `Camera ${deviceSelect.length+1}`;
+        deviceSelect.appendChild(opt);
+      });
+      if (cameras.length > 0) {
+        deviceSelect.style.display = 'inline-block';
+        switchBtn.disabled = false;
+      } else {
+        deviceSelect.style.display = 'none';
+        switchBtn.disabled = true;
+      }
+    } catch (e) {
+      console.warn('enumerateDevices failed', e);
+    }
+  }
+
+  async function startCamera(deviceId = null) {
+    stopCamera();
+    const constraints = {
+      audio: false,
+      video: deviceId ? {deviceId: {exact: deviceId}} : {facingMode: {ideal: 'environment'}}
+    };
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+      videoTrack = stream.getVideoTracks()[0];
+      currentDeviceId = videoTrack.getSettings?.().deviceId || deviceId;
+      captureBtn.disabled = false;
+      stopBtn.disabled = false;
+      startBtn.disabled = true;
+      await enumerateCameras();
+    } catch (err) {
+      console.error('getUserMedia error:', err);
+      alert('카메라를 시작할 수 없습니다. 권한을 허용했는지 확인하세요.');
+    }
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+      video.srcObject = null;
+      captureBtn.disabled = true;
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+    }
+  }
+
+  async function switchCamera() {
+    const selId = deviceSelect.value;
+    // If deviceSelect not populated, try toggling facingMode
+    if (selId) {
+      await startCamera(selId);
+    } else {
+      // toggle between user and environment
+      const currentFacing = videoTrack?.getSettings?.().facingMode || 'environment';
+      const next = currentFacing === 'environment' ? 'user' : 'environment';
+      stopCamera();
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {exact: next}}});
+        video.srcObject = stream;
+        videoTrack = stream.getVideoTracks()[0];
+        currentDeviceId = videoTrack.getSettings?.().deviceId || null;
+      } catch (e) {
+        // fallback: try without exact
+        await startCamera();
+      }
+    }
+  }
+
+  function capturePhoto() {
+    if (!video || video.readyState < 2) return;
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      thumb.src = url;
+      downloadLink.href = url;
+      const filename = `photo_${new Date().toISOString().replace(/[:.]/g,'-')}.jpg`;
+      downloadLink.download = filename;
+      downloadLink.textContent = '촬영 이미지 다운로드';
+      downloadLink.style.display = 'inline-block';
+    }, 'image/jpeg', 0.95);
+  }
+
+  // handle file input fallback
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    thumb.src = url;
+    downloadLink.href = url;
+    downloadLink.download = f.name;
+    downloadLink.style.display = 'inline-block';
+  });
+
+  // wire buttons
+  startBtn.addEventListener('click', () => startCamera());
+  stopBtn.addEventListener('click', () => stopCamera());
+  switchBtn.addEventListener('click', () => switchCamera());
+  captureBtn.addEventListener('click', () => capturePhoto());
+  deviceSelect.addEventListener('change', (e) => startCamera(e.target.value));
+
+  // initialize: check support
+  (async function init(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      startBtn.disabled = true;
+      captureBtn.disabled = true;
+      switchBtn.disabled = true;
+      alert('이 브라우저는 카메라 API (getUserMedia)를 지원하지 않습니다. 파일 업로드를 사용하세요.');
+      return;
+    }
+    await enumerateCameras();
+    // For improved UX on mobile, try to start automatically (optional)
+    // Commented out to avoid unexpected permission prompts
+    // startCamera();
+  })();
+
+  // cleanup on page unload
+  window.addEventListener('pagehide', stopCamera);
+</script>
+</body>
+</html>

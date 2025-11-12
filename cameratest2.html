@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>모바일 카메라 촬영 예제</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #fafafa;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 1.3rem;
+    }
+    #preview {
+      margin-top: 20px;
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #007aff;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>모바일 카메라 촬영 후 사진 표시</h1>
+
+  <!-- 카메라 앱 실행 -->
+  <input
+    type="file"
+    accept="image/*"
+    capture="environment"
+    id="cameraInput"
+    style="display:none"
+  />
+
+  <button class="btn" id="openCameraBtn">카메라 열기</button>
+
+  <div>
+    <img id="preview" alt="촬영한 사진 미리보기" />
+  </div>
+
+  <script>
+    const input = document.getElementById("cameraInput");
+    const btn = document.getElementById("openCameraBtn");
+    const preview = document.getElementById("preview");
+
+    // 버튼 클릭 → 카메라 실행
+    btn.addEventListener("click", () => input.click());
+
+    // 촬영 완료 시 파일 불러오기
+    input.addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      preview.src = url;
+    });
+  </script>
+</body>
+</html>
